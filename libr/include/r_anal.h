@@ -304,6 +304,8 @@ typedef struct r_anal_function_t {
 	RBNode rb;
 	RBNode addr_rb;
 	RList *imports; // maybe bound to class?
+	struct r_anal_t *anal; // this function is associated with this instance
+	int ref; // reference counter
 } RAnalFunction;
 
 typedef struct r_anal_func_arg_t {
@@ -728,6 +730,7 @@ typedef struct r_anal_t {
 	bool use_ex;
 	RList *imports; // global imports
 	SetU *visited;
+	HtUP *ht_bbs;
 } RAnal;
 
 typedef struct r_anal_hint_t {
@@ -918,6 +921,9 @@ typedef struct r_anal_bb_t {
 	bool folded;
 	ut64 cmpval;
 	const char *cmpreg;
+	RList *fcns;
+	int ref;
+	RAnal *anal;
 #undef RAnalBlock
 } RAnalBlock;
 
@@ -1418,6 +1424,31 @@ R_API int r_anal_op_hint(RAnalOp *op, RAnalHint *hint);
 R_API RAnalType *r_anal_type_free(RAnalType *t);
 R_API RAnalType *r_anal_type_loadfile(RAnal *a, const char *path);
 
+/* block.c */
+R_API RAnalBlock *r_anal_block_new(ut64 addr, int size);
+R_API void r_anal_block_free(RAnalBlock *bb);
+R_API RAnalFunction *r_anal_add_function(RAnal *anal, const char *name, ut64 addr);
+R_API RAnalBlock *r_anal_get_block(RAnal *anal, ut64 addr);
+R_API void r_anal_function_ref (RAnalFunction *fcn);
+R_API void r_anal_block_ref (RAnalBlock *bb);
+R_API bool r_anal_add_block(RAnal *anal, RAnalBlock *bb);
+R_API const RList *r_anal_get_functions(RAnal *anal, ut64 addr);
+R_API void r_anal_del_block(RAnal *anal, RAnalBlock *bb);
+R_API RAnalFunction *r_anal_function_new(RAnal *anal, const char *name, ut64 addr);
+R_API void r_anal_function_add_block(RAnal *anal, RAnalFunction *fcn, RAnalBlock *bb);
+R_API void r_anal_function_del_block(RAnal *anal, RAnalFunction *fcn, RAnalBlock *bb);
+R_API void r_anal_function_unref(RAnalFunction *fcn);
+R_API void r_anal_block_unref(RAnalBlock *bb);
+R_API void r_anal_function_free(RAnal *anal, RAnalFunction *f);
+R_API bool r_anal_del_function(RAnalFunction *fcn);
+
+R_API RAnalFunction *r_anal_function_new(RAnal *anal, const char *name, ut64 addr);
+//R_API void r_anal_function_free(RAnalFunction *anal);
+R_API const RList *r_anal_get_functions(RAnal *anal, ut64 addr);
+R_API void r_anal_function_add_block(RAnal *anal, RAnalFunction *fcn, RAnalBlock *bb);
+R_API void r_anal_function_del_block(RAnal *anal, RAnalFunction *fcn, RAnalBlock *bb);
+R_API void r_anal_function_free(RAnal *anal, RAnalFunction *f);
+
 /* anal.c */
 R_API RAnal *r_anal_new(void);
 R_API int r_anal_purge (RAnal *anal);
@@ -1447,11 +1478,10 @@ R_API const char *r_anal_get_fcnsign(RAnal *anal, const char *sym);
 
 /* bb.c */
 R_API RAnalBlock *r_anal_bb_new(void);
-R_API RList *r_anal_bb_list_new(void);
 R_API void r_anal_bb_free(RAnalBlock *bb);
 R_API int r_anal_bb(RAnal *anal, RAnalBlock *bb, ut64 addr, const ut8 *buf, ut64 len, int head);
 R_API RAnalBlock *r_anal_bb_from_offset(RAnal *anal, ut64 off);
-R_API int r_anal_bb_is_in_offset(RAnalBlock *bb, ut64 addr);
+R_API bool r_anal_bb_is_in_offset(RAnalBlock *bb, ut64 addr);
 R_API bool r_anal_bb_set_offset(RAnalBlock *bb, int i, ut16 v);
 R_API ut16 r_anal_bb_offset_inst(RAnalBlock *bb, int i);
 R_API ut64 r_anal_bb_opaddr_i(RAnalBlock *bb, int i);
@@ -1531,7 +1561,7 @@ R_API ut32 r_anal_fcn_cost(RAnal *anal, RAnalFunction *fcn);
 R_API bool r_anal_fcn_tree_delete(RAnal *anal, RAnalFunction *data);
 R_API void r_anal_fcn_tree_insert(RAnal *anal, RAnalFunction *fcn);
 R_API int r_anal_fcn_count_edges(const RAnalFunction *fcn, int *ebbs);
-R_API RAnalFunction *r_anal_fcn_new(void);
+R_API RAnalFunction *r_anal_fcn_new(RAnal *anal);
 R_API int r_anal_fcn_is_in_offset (RAnalFunction *fcn, ut64 addr);
 R_API bool r_anal_fcn_in(RAnalFunction *fcn, ut64 addr);
 R_API RList *r_anal_get_fcn_in_list(RAnal *anal, ut64 addr, int type);
@@ -1596,7 +1626,7 @@ R_API char *r_anal_fcn_to_string(RAnal *a, RAnalFunction* fs);
 R_API int r_anal_str_to_fcn(RAnal *a, RAnalFunction *f, const char *_str);
 R_API int r_anal_fcn_count (RAnal *a, ut64 from, ut64 to);
 R_API RAnalBlock *r_anal_fcn_bbget_in(const RAnal *anal, RAnalFunction *fcn, ut64 addr);
-R_API RAnalBlock *r_anal_fcn_bbget_at(RAnalFunction *fcn, ut64 addr);
+R_API RAnalBlock *r_anal_fcn_bbget_at(RAnal *anal, RAnalFunction *fcn, ut64 addr);
 R_API bool r_anal_fcn_contains(RAnalFunction *fcn, ut64 addr);
 R_API bool r_anal_fcn_bbadd(RAnalFunction *fcn, RAnalBlock *bb);
 R_API int r_anal_fcn_resize (RAnal *anal, RAnalFunction *fcn, int newsize);

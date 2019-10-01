@@ -2810,7 +2810,7 @@ static int cmd_anal_fcn(RCore *core, const char *input) {
 			ut64 addr = input[2]
 				? r_num_math (core->num, input + 2)
 				: core->offset;
-			r_anal_fcn_del_locs (core->anal, addr);
+		//	r_anal_fcn_del_locs (core->anal, addr);
 			r_anal_fcn_del (core->anal, addr);
 		}
 		break;
